@@ -5,6 +5,36 @@ export async function onRequest(context) {
         params,
     } = context;
 
+    // 认证检查（可选，如果希望公开访问图片，可以注释掉这部分）
+    const authEnabled = !!(env.AUTH_USERNAME && env.AUTH_PASSWORD);
+    if (authEnabled) {
+        const cookie = request.headers.get('Cookie') || '';
+        const authCookie = cookie.split(';').find(c => c.trim().startsWith('auth_session='));
+        
+        if (authCookie) {
+            try {
+                const sessionData = atob(authCookie.split('=')[1]);
+                const session = JSON.parse(sessionData);
+                if (!session.authenticated || (Date.now() - session.timestamp) >= 86400000) {
+                    // Session 过期，但仍然允许访问图片（公开访问）
+                    // 如果希望强制登录，可以取消注释下面的代码
+                    /*
+                    return new Response(JSON.stringify({
+                        success: false,
+                        error: 'Session Expired',
+                        message: '登录已过期'
+                    }), {
+                        status: 401,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    */
+                }
+            } catch (e) {
+                // Cookie 解析错误，仍然允许访问图片
+            }
+        }
+    }
+
     const url = new URL(request.url);
     let fileUrl = 'https://telegra.ph/' + url.pathname + url.search
     if (url.pathname.length > 39) { // Path length > 39 indicates file uploaded via Telegram Bot API

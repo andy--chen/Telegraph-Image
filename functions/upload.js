@@ -3,6 +3,48 @@ import { errorHandling, telemetryData } from "./utils/middleware";
 export async function onRequestPost(context) {
     const { request, env } = context;
 
+    // 认证检查
+    const authEnabled = !!(env.AUTH_USERNAME && env.AUTH_PASSWORD);
+    if (authEnabled) {
+        const cookie = request.headers.get('Cookie') || '';
+        const authCookie = cookie.split(';').find(c => c.trim().startsWith('auth_session='));
+        
+        if (!authCookie) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Unauthorized',
+                message: '请先登录'
+            }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        
+        try {
+            const sessionData = atob(authCookie.split('=')[1]);
+            const session = JSON.parse(sessionData);
+            if (!session.authenticated || (Date.now() - session.timestamp) >= 86400000) {
+                return new Response(JSON.stringify({
+                    success: false,
+                    error: 'Session Expired',
+                    message: '登录已过期，请重新登录'
+                }), {
+                    status: 401,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        } catch (e) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: 'Invalid Session',
+                message: '无效的会话'
+            }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
     try {
         const clonedRequest = request.clone();
         const formData = await clonedRequest.formData();
