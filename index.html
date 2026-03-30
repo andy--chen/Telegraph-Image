@@ -56,13 +56,16 @@
         function checkAuth() {
           fetch('/auth', {credentials: 'include'})
             .then(function(r) { 
-              if (!r.ok) throw new Error('HTTP ' + r.status);
               return r.json(); 
             })
             .then(function(d) {
               console.log('Auth check response:', d);
               if (!d.authEnabled || d.authenticated) {
+                // 未启用认证或已认证，隐藏登录框
                 loginOverlay.style.display = 'none';
+              } else {
+                // 需要认证，显示登录框
+                loginOverlay.style.display = 'flex';
               }
             })
             .catch(function(e) { 
@@ -71,6 +74,17 @@
               loginOverlay.style.display = 'none';
             });
         }
+        
+        // 全局错误处理 - 捕获 401 错误并显示登录框
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && event.reason.status === 401) {
+            console.log('Caught 401 error, showing login overlay');
+            loginOverlay.style.display = 'flex';
+            errorMessage.textContent = '登录已过期，请重新登录';
+            errorMessage.style.display = 'block';
+            event.preventDefault();
+          }
+        });
         
         // 登录表单提交
         loginForm.addEventListener('submit', function(e) {
@@ -91,13 +105,14 @@
           })
           .then(function(r) {
             console.log('Login response status:', r.status);
-            if (!r.ok) throw new Error('HTTP ' + r.status);
             return r.json();
           })
           .then(function(d) {
             console.log('Login response data:', d);
             if (d.success) {
               loginOverlay.style.display = 'none';
+              // 重新加载页面以应用认证状态
+              location.reload();
             } else {
               errorMessage.textContent = d.message || '用户名或密码错误';
               errorMessage.style.display = 'block';
@@ -114,6 +129,38 @@
             btnText.style.display = 'inline';
             btnLoading.style.display = 'none';
           });
+        });
+        
+        // 监听上传错误，自动弹出登录框
+        document.addEventListener('DOMContentLoaded', function() {
+          const upFiles = document.getElementById('upFiles');
+          if (upFiles) {
+            upFiles.addEventListener('change', function() {
+              if (this.files && this.files.length > 0) {
+                // 尝试上传，如果返回 401 则显示登录框
+                const formData = new FormData();
+                formData.append('file', this.files[0]);
+                
+                fetch('/upload', {
+                  method: 'POST',
+                  body: formData
+                })
+                .then(function(r) {
+                  if (r.status === 401) {
+                    console.log('Upload requires auth, showing login');
+                    loginOverlay.style.display = 'flex';
+                    errorMessage.textContent = '请先登录';
+                    errorMessage.style.display = 'block';
+                    // 清空文件选择
+                    upFiles.value = '';
+                  }
+                })
+                .catch(function(e) {
+                  console.error('Upload test error:', e);
+                });
+              }
+            });
+          }
         });
         
         // 初始化
