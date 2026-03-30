@@ -55,13 +55,21 @@
         // 检查是否已登录
         function checkAuth() {
           fetch('/auth', {credentials: 'include'})
-            .then(function(r) { return r.json(); })
+            .then(function(r) { 
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              return r.json(); 
+            })
             .then(function(d) {
+              console.log('Auth check response:', d);
               if (!d.authEnabled || d.authenticated) {
                 loginOverlay.style.display = 'none';
               }
             })
-            .catch(function(e) { console.error('Auth check failed:', e); });
+            .catch(function(e) { 
+              console.error('Auth check failed:', e);
+              // 如果认证端点不存在，隐藏登录框（向后兼容）
+              loginOverlay.style.display = 'none';
+            });
         }
         
         // 登录表单提交
@@ -81,9 +89,14 @@
               password: document.getElementById('password').value
             })
           })
-          .then(function(r) { return r.json(); })
+          .then(function(r) {
+            console.log('Login response status:', r.status);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
           .then(function(d) {
-            if (r.ok && d.success) {
+            console.log('Login response data:', d);
+            if (d.success) {
               loginOverlay.style.display = 'none';
             } else {
               errorMessage.textContent = d.message || '用户名或密码错误';
@@ -94,6 +107,7 @@
             }
           })
           .catch(function(e) {
+            console.error('Login error:', e);
             errorMessage.textContent = '网络错误，请稍后重试';
             errorMessage.style.display = 'block';
             loginBtn.disabled = false;
